@@ -8,9 +8,15 @@
 
   var REFRESH_INTERVAL_MINUTES = 10;
   var QUOTE_LIBRARY_PATH = "./data/quote-library.json";
+  var DEFAULT_CLOCK_UTC_OFFSET_SECONDS = 8 * 3600;
+  var DEFAULT_CLOCK_TIMEZONE_LABEL = "北京时间 (UTC+8)";
+  var CLOCK_SCALE_MIN = 0.7;
+  var CLOCK_SCALE_MAX = 1.8;
+  var CLOCK_SCALE_STEP = 0.1;
   var STORAGE_KEYS = {
     weatherGroup: "kindle_weather_group",
-    weatherCity: "kindle_weather_city"
+    weatherCity: "kindle_weather_city",
+    clockScale: "kindle_clock_scale"
   };
 
   var FALLBACK_CITY_GROUPS = [
@@ -65,9 +71,11 @@
   };
 
   var clockState = {
-    useRemoteTime: false,
-    utcOffsetSeconds: null,
-    timezoneLabel: ""
+    useRemoteTime: true,
+    utcOffsetSeconds: DEFAULT_CLOCK_UTC_OFFSET_SECONDS,
+    timezoneLabel: DEFAULT_CLOCK_TIMEZONE_LABEL,
+    scale: 1,
+    supportsZoom: false
   };
 
   function isArray(value) {
@@ -116,6 +124,105 @@
     } catch (error) {
       // Ignore storage failures on restricted browsers.
     }
+  }
+
+  function normalizeClockScale(value) {
+    var parsed = parseFloat(value);
+    if (isNaN(parsed)) {
+      parsed = 1;
+    }
+    if (parsed < CLOCK_SCALE_MIN) {
+      parsed = CLOCK_SCALE_MIN;
+    }
+    if (parsed > CLOCK_SCALE_MAX) {
+      parsed = CLOCK_SCALE_MAX;
+    }
+    return Math.round(parsed * 10) / 10;
+  }
+
+  function updateClockScaleLabel() {
+    var label = document.getElementById("clockScaleLabel");
+    if (!label) {
+      return;
+    }
+    label.innerHTML = String(Math.round(clockState.scale * 100)) + "%";
+  }
+
+  function applyClockScale() {
+    var host = document.getElementById("clockScaleHost");
+    var root = document.getElementById("clockScaleRoot");
+    var scale = clockState.scale;
+    var baseHeight;
+    var transformValue;
+
+    if (!host || !root) {
+      return;
+    }
+
+    if (typeof root.style.zoom !== "undefined") {
+      clockState.supportsZoom = true;
+    }
+
+    if (clockState.supportsZoom) {
+      root.style.width = "100%";
+      root.style.zoom = String(scale);
+      root.style.webkitTransform = "none";
+      root.style.transform = "none";
+      host.style.height = "auto";
+      updateClockScaleLabel();
+      return;
+    }
+
+    root.style.zoom = "";
+    root.style.width = "100%";
+    root.style.webkitTransform = "none";
+    root.style.transform = "none";
+    host.style.height = "auto";
+
+    baseHeight = root.offsetHeight || root.scrollHeight || 0;
+    transformValue = "scale(" + String(scale) + ")";
+    root.style.width = String(100 / scale) + "%";
+    root.style.webkitTransform = transformValue;
+    root.style.transform = transformValue;
+    host.style.height = String(Math.ceil(baseHeight * scale)) + "px";
+    updateClockScaleLabel();
+  }
+
+  function setClockScale(value, shouldPersist) {
+    clockState.scale = normalizeClockScale(value);
+    if (shouldPersist) {
+      safeSetStorage(STORAGE_KEYS.clockScale, String(clockState.scale));
+    }
+    applyClockScale();
+  }
+
+  function initClockScaleControls() {
+    var downBtn = document.getElementById("clockScaleDownBtn");
+    var upBtn = document.getElementById("clockScaleUpBtn");
+    var resetBtn = document.getElementById("clockScaleResetBtn");
+    var storedScale = safeGetStorage(STORAGE_KEYS.clockScale);
+
+    clockState.scale = normalizeClockScale(storedScale);
+
+    if (downBtn) {
+      downBtn.onclick = function () {
+        setClockScale(clockState.scale - CLOCK_SCALE_STEP, true);
+      };
+    }
+
+    if (upBtn) {
+      upBtn.onclick = function () {
+        setClockScale(clockState.scale + CLOCK_SCALE_STEP, true);
+      };
+    }
+
+    if (resetBtn) {
+      resetBtn.onclick = function () {
+        setClockScale(1, true);
+      };
+    }
+
+    setClockScale(clockState.scale, false);
   }
 
   function findGroupById(groupId) {
@@ -242,9 +349,9 @@
   }
 
   function resetClockTimezoneSync() {
-    clockState.useRemoteTime = false;
-    clockState.utcOffsetSeconds = null;
-    clockState.timezoneLabel = "";
+    clockState.useRemoteTime = true;
+    clockState.utcOffsetSeconds = DEFAULT_CLOCK_UTC_OFFSET_SECONDS;
+    clockState.timezoneLabel = DEFAULT_CLOCK_TIMEZONE_LABEL;
   }
 
   function initWeatherSelectors() {
@@ -356,7 +463,7 @@
     var slotStart = pad2(hour) + ":" + pad2(slotMinute);
     var slotEnd = pad2(hour) + ":" + pad2(Math.min(slotMinute + 9, 59));
     var nextRefresh = getNextRefreshTime(new Date(Date.now()));
-    var zoneText = clockState.useRemoteTime ? "时区：" + (clockState.timezoneLabel || "城市时区") : "时区：设备本地";
+    var zoneText = "时区：" + (clockState.timezoneLabel || DEFAULT_CLOCK_TIMEZONE_LABEL);
 
     document.getElementById("dateText").innerHTML =
       String(year) + "-" + pad2(month) + "-" + pad2(day) + " " + WEEKDAY_LABELS[weekday];
@@ -368,10 +475,20 @@
       "下一次自动刷新：" + pad2(nextRefresh.getHours()) + ":" + pad2(nextRefresh.getMinutes());
 
     renderTenMinuteGrid(activeSlot);
+    applyClockScale();
   }
 
   function initClock() {
     renderClock();
+    initClockScaleControls();
+  }
+
+  function bindClockScaleResize() {
+    if (window.addEventListener) {
+      window.addEventListener("resize", applyClockScale, false);
+    } else if (window.attachEvent) {
+      window.attachEvent("onresize", applyClockScale);
+    }
   }
 
   function scheduleAutoRefresh() {
@@ -477,14 +594,7 @@
         min = isArray(daily.temperature_2m_min) ? Math.round(daily.temperature_2m_min[0]) : null;
         dayNight = Number(current.is_day) === 1 ? "白天" : "夜间";
 
-        if (typeof payload.utc_offset_seconds === "number") {
-          clockState.useRemoteTime = true;
-          clockState.utcOffsetSeconds = payload.utc_offset_seconds;
-          clockState.timezoneLabel = payload.timezone || "";
-          renderClock();
-        }
-
-        zoneSuffix = clockState.timezoneLabel ? " · " + clockState.timezoneLabel : "";
+        zoneSuffix = payload && payload.timezone ? " · " + payload.timezone : "";
         weatherMain.innerHTML = selectedCity.label + "（" + selectedCity.country + "） " + weatherLabel + " " + String(temp) + "°C";
         if (max !== null && min !== null) {
           weatherSub.innerHTML =
@@ -554,6 +664,7 @@
 
   function init() {
     initClock();
+    bindClockScaleResize();
     scheduleAutoRefresh();
     initWeatherSelectors();
     renderWeather();
