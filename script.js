@@ -1,5 +1,11 @@
 // Legacy-friendly ES5 script for older Kindle browsers.
 (function () {
+  if (!Date.now) {
+    Date.now = function () {
+      return new Date().getTime();
+    };
+  }
+
   var REFRESH_INTERVAL_MINUTES = 10;
   var QUOTE_LIBRARY_PATH = "./data/quote-library.json";
   var STORAGE_KEYS = {
@@ -25,6 +31,8 @@
     { text: "你得先相信自己，别人才会相信你。", source: "《海上钢琴师》", author: "电影台词", type: "movie" },
     { text: "人是为了活着本身而活着。", source: "《活着》", author: "余华", type: "book" }
   ];
+
+  var WEEKDAY_LABELS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 
   var WEATHER_CODE_MAP = {
     0: "晴",
@@ -52,7 +60,14 @@
 
   var weatherState = {
     selectedGroupId: null,
-    selectedCityId: null
+    selectedCityId: null,
+    requestToken: 0
+  };
+
+  var clockState = {
+    useRemoteTime: false,
+    utcOffsetSeconds: null,
+    timezoneLabel: ""
   };
 
   function isArray(value) {
@@ -226,12 +241,16 @@
     }
   }
 
+  function resetClockTimezoneSync() {
+    clockState.useRemoteTime = false;
+    clockState.utcOffsetSeconds = null;
+    clockState.timezoneLabel = "";
+  }
+
   function initWeatherSelectors() {
     var groupSelect = document.getElementById("cityGroupSelect");
     var citySelect = document.getElementById("citySelect");
     var initial;
-    var nextGroup;
-    var nextCity;
 
     if (!groupSelect || !citySelect) {
       return;
@@ -250,7 +269,8 @@
     persistWeatherSelection();
 
     groupSelect.onchange = function () {
-      nextGroup = findGroupById(groupSelect.value) || getFirstAvailableGroup();
+      var nextGroup = findGroupById(groupSelect.value) || getFirstAvailableGroup();
+      var nextCity;
       if (!nextGroup) {
         return;
       }
@@ -261,14 +281,51 @@
 
       renderCityOptions(citySelect, nextGroup, weatherState.selectedCityId);
       persistWeatherSelection();
+      resetClockTimezoneSync();
+      renderClock();
       renderWeather();
     };
 
     citySelect.onchange = function () {
       weatherState.selectedCityId = citySelect.value;
       persistWeatherSelection();
+      resetClockTimezoneSync();
+      renderClock();
       renderWeather();
     };
+  }
+
+  function getClockContext() {
+    var nowMs = Date.now();
+    if (clockState.useRemoteTime && typeof clockState.utcOffsetSeconds === "number") {
+      return { date: new Date(nowMs + clockState.utcOffsetSeconds * 1000), useUTCFields: true };
+    }
+    return { date: new Date(nowMs), useUTCFields: false };
+  }
+
+  function getDatePart(date, useUTCFields, type) {
+    if (type === "year") {
+      return useUTCFields ? date.getUTCFullYear() : date.getFullYear();
+    }
+    if (type === "month") {
+      return useUTCFields ? date.getUTCMonth() + 1 : date.getMonth() + 1;
+    }
+    if (type === "day") {
+      return useUTCFields ? date.getUTCDate() : date.getDate();
+    }
+    if (type === "weekday") {
+      return useUTCFields ? date.getUTCDay() : date.getDay();
+    }
+    if (type === "hour") {
+      return useUTCFields ? date.getUTCHours() : date.getHours();
+    }
+    if (type === "minute") {
+      return useUTCFields ? date.getUTCMinutes() : date.getMinutes();
+    }
+    if (type === "second") {
+      return useUTCFields ? date.getUTCSeconds() : date.getSeconds();
+    }
+    return 0;
   }
 
   function renderTenMinuteGrid(activeSlot) {
@@ -284,22 +341,37 @@
     }
   }
 
-  function renderClock(now) {
-    var current = now || new Date();
-    var hour = current.getHours();
-    var activeSlot = Math.floor(current.getMinutes() / 10);
+  function renderClock() {
+    var context = getClockContext();
+    var date = context.date;
+    var useUTCFields = context.useUTCFields;
+    var year = getDatePart(date, useUTCFields, "year");
+    var month = getDatePart(date, useUTCFields, "month");
+    var day = getDatePart(date, useUTCFields, "day");
+    var weekday = getDatePart(date, useUTCFields, "weekday");
+    var hour = getDatePart(date, useUTCFields, "hour");
+    var minute = getDatePart(date, useUTCFields, "minute");
+    var activeSlot = Math.floor(minute / 10);
     var slotMinute = activeSlot * 10;
     var slotStart = pad2(hour) + ":" + pad2(slotMinute);
     var slotEnd = pad2(hour) + ":" + pad2(Math.min(slotMinute + 9, 59));
-    var next = getNextRefreshTime(current);
+    var nextRefresh = getNextRefreshTime(new Date(Date.now()));
+    var zoneText = clockState.useRemoteTime ? "时区：" + (clockState.timezoneLabel || "城市时区") : "时区：设备本地";
 
+    document.getElementById("dateText").innerHTML =
+      String(year) + "-" + pad2(month) + "-" + pad2(day) + " " + WEEKDAY_LABELS[weekday];
     document.getElementById("hourText").innerHTML = pad2(hour);
-    document.getElementById("minuteSlotText").innerHTML = pad2(slotMinute);
+    document.getElementById("minuteText").innerHTML = pad2(minute);
+    document.getElementById("clockTimezoneText").innerHTML = zoneText;
     document.getElementById("slotRangeText").innerHTML = "当前十分钟：" + slotStart + " - " + slotEnd;
     document.getElementById("refreshHint").innerHTML =
-      "下一次自动刷新：" + pad2(next.getHours()) + ":" + pad2(next.getMinutes());
+      "下一次自动刷新：" + pad2(nextRefresh.getHours()) + ":" + pad2(nextRefresh.getMinutes());
 
     renderTenMinuteGrid(activeSlot);
+  }
+
+  function initClock() {
+    renderClock();
   }
 
   function scheduleAutoRefresh() {
@@ -324,7 +396,6 @@
 
   function requestJson(url, onSuccess, onError) {
     var xhr;
-
     if (!window.XMLHttpRequest) {
       onError(new Error("XMLHttpRequest unsupported"));
       return;
@@ -333,15 +404,12 @@
     xhr = new XMLHttpRequest();
     xhr.open("GET", url, true);
     xhr.onreadystatechange = function () {
-      var data;
       if (xhr.readyState !== 4) {
         return;
       }
-
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          data = JSON.parse(xhr.responseText);
-          onSuccess(data);
+          onSuccess(JSON.parse(xhr.responseText));
         } catch (error) {
           onError(error);
         }
@@ -360,6 +428,9 @@
     var weatherSub = document.getElementById("weatherSub");
     var weatherUpdated = document.getElementById("weatherUpdated");
     var selectedCity = getSelectedCity();
+    var requestToken = weatherState.requestToken + 1;
+
+    weatherState.requestToken = requestToken;
 
     if (!selectedCity) {
       weatherMain.innerHTML = "未找到可用城市";
@@ -382,30 +453,59 @@
           timezone: "auto"
         }),
       function (payload) {
-        var current = payload && payload.current ? payload.current : {};
-        var daily = payload && payload.daily ? payload.daily : {};
-        var weatherLabel =
-          WEATHER_CODE_MAP[current.weather_code] || (typeof current.weather_code === "number" ? "天气变化中" : "天气未知");
-        var temp = Math.round(current.temperature_2m);
-        var feel = Math.round(current.apparent_temperature);
-        var max = isArray(daily.temperature_2m_max) ? Math.round(daily.temperature_2m_max[0]) : null;
-        var min = isArray(daily.temperature_2m_min) ? Math.round(daily.temperature_2m_min[0]) : null;
-        var dayNight = Number(current.is_day) === 1 ? "白天" : "夜间";
-        var now = new Date();
+        var current;
+        var daily;
+        var weatherLabel;
+        var temp;
+        var feel;
+        var max;
+        var min;
+        var dayNight;
+        var nowCtx;
+        var zoneSuffix;
 
-        weatherMain.innerHTML =
-          selectedCity.label + "（" + selectedCity.country + "） " + weatherLabel + " " + String(temp) + "°C";
+        if (requestToken !== weatherState.requestToken) {
+          return;
+        }
+
+        current = payload && payload.current ? payload.current : {};
+        daily = payload && payload.daily ? payload.daily : {};
+        weatherLabel = WEATHER_CODE_MAP[current.weather_code] || "天气变化中";
+        temp = Math.round(current.temperature_2m);
+        feel = Math.round(current.apparent_temperature);
+        max = isArray(daily.temperature_2m_max) ? Math.round(daily.temperature_2m_max[0]) : null;
+        min = isArray(daily.temperature_2m_min) ? Math.round(daily.temperature_2m_min[0]) : null;
+        dayNight = Number(current.is_day) === 1 ? "白天" : "夜间";
+
+        if (typeof payload.utc_offset_seconds === "number") {
+          clockState.useRemoteTime = true;
+          clockState.utcOffsetSeconds = payload.utc_offset_seconds;
+          clockState.timezoneLabel = payload.timezone || "";
+          renderClock();
+        }
+
+        zoneSuffix = clockState.timezoneLabel ? " · " + clockState.timezoneLabel : "";
+        weatherMain.innerHTML = selectedCity.label + "（" + selectedCity.country + "） " + weatherLabel + " " + String(temp) + "°C";
         if (max !== null && min !== null) {
           weatherSub.innerHTML =
-            "体感 " + String(feel) + "°C · 今日 " + String(min) + "°C ~ " + String(max) + "°C · " + dayNight;
+            "体感 " + String(feel) + "°C · 今日 " + String(min) + "°C ~ " + String(max) + "°C · " + dayNight + zoneSuffix;
         } else {
-          weatherSub.innerHTML = "体感 " + String(feel) + "°C · " + dayNight;
+          weatherSub.innerHTML = "体感 " + String(feel) + "°C · " + dayNight + zoneSuffix;
         }
-        weatherUpdated.innerHTML = "更新时间：" + pad2(now.getHours()) + ":" + pad2(now.getMinutes());
+
+        nowCtx = getClockContext();
+        weatherUpdated.innerHTML =
+          "更新时间：" +
+          pad2(getDatePart(nowCtx.date, nowCtx.useUTCFields, "hour")) +
+          ":" +
+          pad2(getDatePart(nowCtx.date, nowCtx.useUTCFields, "minute"));
       },
       function () {
+        if (requestToken !== weatherState.requestToken) {
+          return;
+        }
         weatherMain.innerHTML = selectedCity.label + "（" + selectedCity.country + "） 天气暂不可用";
-        weatherSub.innerHTML = "请检查网络或 HTTPS 证书兼容性，页面会在下次刷新时重试";
+        weatherSub.innerHTML = "请检查网络或 HTTPS 兼容性，页面会在下次刷新时重试";
         weatherUpdated.innerHTML = "";
       }
     );
@@ -453,17 +553,18 @@
   }
 
   function init() {
-    var now = new Date();
-    renderClock(now);
+    initClock();
     scheduleAutoRefresh();
     initWeatherSelectors();
     renderWeather();
-    renderDailyQuote(now);
+    renderDailyQuote(new Date());
   }
 
   if (document.addEventListener) {
     document.addEventListener("DOMContentLoaded", init);
-  } else {
+  } else if (window.attachEvent) {
     window.attachEvent("onload", init);
+  } else {
+    window.onload = init;
   }
 })();

@@ -4,17 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <title>Kindle Dashboard</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260329b" />
   </head>
   <body>
     <main class="dashboard" aria-live="polite">
       <section class="card clock-card" aria-label="桌面时钟">
         <p class="card-title">桌面时钟</p>
+        <p id="dateText" class="date-text">---- -- -- 星期-</p>
         <div class="time-main">
           <span id="hourText" class="hour-text">--</span>
           <span class="colon">:</span>
-          <span id="minuteSlotText" class="minute-text">--</span>
+          <span id="minuteText" class="minute-text">--</span>
         </div>
+        <p id="clockTimezoneText" class="clock-zone">时区：--</p>
         <p id="slotRangeText" class="slot-range">--</p>
         <div id="tenMinuteGrid" class="ten-grid" role="img" aria-label="十分钟时段进度"></div>
         <p id="refreshHint" class="hint">下一次自动刷新：--:--</p>
@@ -40,8 +42,8 @@
       </section>
     </main>
 
-    <script src="./data/quote-library.js?v=20260329"></script>
-    <script src="./data/cities.js?v=20260329"></script>
-    <script src="./script.js?v=20260329"></script>
+    <script src="./data/quote-library.js?v=20260329b"></script>
+    <script src="./data/cities.js?v=20260329b"></script>
+    <script src="./script.js?v=20260329b"></script>
   </body>
 </html>

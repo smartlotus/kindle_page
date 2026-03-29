@@ -23,71 +23,92 @@ body {
 
 body {
   min-height: 100vh;
-  padding: 2.2vh 2.6vw;
+  padding: 8px 10px;
 }
 
 .dashboard {
-  display: grid;
-  gap: 1.8vh;
   margin: 0 auto;
   max-width: 900px;
 }
 
 .card {
   border: 2px solid var(--line);
-  border-radius: 14px;
+  border-radius: 10px;
   background: linear-gradient(180deg, var(--card) 0%, #efefe9 100%);
-  padding: 1rem 1.1rem;
+  padding: 10px 10px 9px;
+  margin-bottom: 8px;
+}
+
+.card:last-child {
+  margin-bottom: 0;
 }
 
 .card-title {
-  margin: 0 0 0.45rem;
-  font-size: clamp(0.95rem, 1.8vw, 1.15rem);
-  letter-spacing: 0.12em;
+  margin: 0 0 4px;
+  font-size: 15px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
+.date-text {
+  margin: 0 0 5px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
 .time-main {
-  display: flex;
-  align-items: baseline;
-  gap: 0.2rem;
+  display: block;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .hour-text,
 .minute-text {
   font-family: "Courier New", Courier, monospace;
-  font-size: clamp(3rem, 12vw, 6.1rem);
+  font-size: 74px;
   font-weight: 700;
 }
 
 .colon {
   font-family: "Courier New", Courier, monospace;
-  font-size: clamp(2rem, 8vw, 4.2rem);
+  font-size: 64px;
   font-weight: 700;
-  transform: translateY(-0.2rem);
+  vertical-align: baseline;
+}
+
+.clock-zone {
+  margin: 4px 0 4px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .slot-range {
-  margin: 0.45rem 0 0.65rem;
-  font-size: clamp(0.9rem, 2.2vw, 1.15rem);
+  margin: 4px 0 5px;
+  font-size: 14px;
 }
 
 .ten-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0.35rem;
-  margin: 0 0 0.55rem;
+  display: block;
+  white-space: nowrap;
+  font-size: 0;
+  margin: 0 0 6px;
 }
 
 .grid-cell {
+  display: inline-block;
+  width: 15.8%;
+  margin-right: 1%;
   border: 1px solid var(--line);
   border-radius: 6px;
   text-align: center;
-  padding: 0.45rem 0.2rem;
+  padding: 5px 0;
   font-family: "Courier New", Courier, monospace;
-  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  font-size: 16px;
   background: var(--inactive);
+}
+
+.grid-cell:last-child {
+  margin-right: 0;
 }
 
 .grid-cell.active {
@@ -98,87 +119,100 @@ body {
 .hint {
   margin: 0;
   color: var(--muted);
-  font-size: clamp(0.8rem, 1.8vw, 0.95rem);
+  font-size: 12px;
 }
 
 .weather-controls {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.45rem 0.6rem;
-  align-items: center;
-  margin-bottom: 0.7rem;
+  display: table;
+  width: 100%;
+  margin-bottom: 7px;
 }
 
 .selector-label {
-  font-size: clamp(0.82rem, 1.9vw, 1rem);
+  display: table-cell;
+  width: 38px;
+  padding: 2px 0;
+  font-size: 13px;
   color: var(--muted);
+  vertical-align: middle;
 }
 
 .selector-input {
+  display: table-cell;
   width: 100%;
-  min-height: 2rem;
-  padding: 0.28rem 0.45rem;
+  min-height: 30px;
+  margin-bottom: 4px;
+  padding: 3px 5px;
   border: 1.5px solid var(--line);
   border-radius: 6px;
   background: #ffffff;
   color: var(--fg);
-  font-size: clamp(0.88rem, 2vw, 1rem);
+  font-size: 14px;
   font-family: inherit;
 }
 
-.selector-input:focus {
-  outline: 2px solid var(--line);
-  outline-offset: 1px;
-}
-
 .weather-main {
-  margin: 0.1rem 0 0.35rem;
-  font-size: clamp(1.25rem, 4.2vw, 2rem);
+  margin: 2px 0 4px;
+  font-size: 26px;
   font-weight: 600;
+  line-height: 1.1;
 }
 
 .weather-sub {
   margin: 0;
   color: var(--muted);
-  font-size: clamp(0.9rem, 2vw, 1.08rem);
+  font-size: 14px;
 }
 
 .weather-updated {
-  margin: 0.45rem 0 0;
+  margin: 4px 0 0;
   color: var(--muted);
-  font-size: clamp(0.8rem, 1.7vw, 0.92rem);
+  font-size: 12px;
 }
 
 .quote-text {
-  margin: 0.3rem 0 0.7rem;
-  padding-left: 0.55rem;
+  margin: 3px 0 7px;
+  padding-left: 8px;
   border-left: 4px solid var(--line);
-  font-size: clamp(1.05rem, 2.6vw, 1.55rem);
-  line-height: 1.55;
+  font-size: 20px;
+  line-height: 1.35;
 }
 
 .quote-meta {
   margin: 0;
   color: var(--muted);
-  font-size: clamp(0.86rem, 1.8vw, 1.05rem);
+  font-size: 13px;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 700px) {
   body {
-    padding: 2.4vh 4vw;
+    padding: 6px 8px;
   }
 
   .card {
-    border-radius: 10px;
-    padding: 0.9rem 0.9rem;
+    padding: 8px 8px 7px;
+    margin-bottom: 6px;
   }
 
-  .ten-grid {
-    gap: 0.25rem;
+  .hour-text,
+  .minute-text {
+    font-size: 64px;
   }
 
-  .weather-controls {
-    grid-template-columns: 1fr;
-    gap: 0.28rem;
+  .colon {
+    font-size: 54px;
+  }
+
+  .weather-main {
+    font-size: 22px;
+  }
+
+  .quote-text {
+    font-size: 18px;
+  }
+
+  .grid-cell {
+    font-size: 15px;
+    padding: 4px 0;
   }
 }
