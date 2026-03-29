@@ -11,12 +11,14 @@
   var DEFAULT_CLOCK_UTC_OFFSET_SECONDS = 8 * 3600;
   var DEFAULT_CLOCK_TIMEZONE_LABEL = "北京时间 (UTC+8)";
   var CLOCK_SCALE_MIN = 0.7;
-  var CLOCK_SCALE_MAX = 1.8;
+  var CLOCK_SCALE_MAX = 1.3;
   var CLOCK_SCALE_STEP = 0.1;
   var STORAGE_KEYS = {
     weatherGroup: "kindle_weather_group",
     weatherCity: "kindle_weather_city",
-    clockScale: "kindle_clock_scale"
+    clockScale: "kindle_clock_scale",
+    weatherScale: "kindle_weather_scale",
+    quoteScale: "kindle_quote_scale"
   };
 
   var FALLBACK_CITY_GROUPS = [
@@ -73,9 +75,46 @@
   var clockState = {
     useRemoteTime: true,
     utcOffsetSeconds: DEFAULT_CLOCK_UTC_OFFSET_SECONDS,
-    timezoneLabel: DEFAULT_CLOCK_TIMEZONE_LABEL,
-    scale: 1,
-    supportsZoom: false
+    timezoneLabel: DEFAULT_CLOCK_TIMEZONE_LABEL
+  };
+
+  var moduleScaleConfigs = {
+    clock: {
+      hostId: "clockScaleHost",
+      rootId: "clockScaleRoot",
+      labelId: "clockScaleLabel",
+      downBtnId: "clockScaleDownBtn",
+      upBtnId: "clockScaleUpBtn",
+      resetBtnId: "clockScaleResetBtn",
+      storageKey: STORAGE_KEYS.clockScale,
+      defaultScale: 1,
+      scale: 1,
+      supportsZoom: false
+    },
+    weather: {
+      hostId: "weatherScaleHost",
+      rootId: "weatherScaleRoot",
+      labelId: "weatherScaleLabel",
+      downBtnId: "weatherScaleDownBtn",
+      upBtnId: "weatherScaleUpBtn",
+      resetBtnId: "weatherScaleResetBtn",
+      storageKey: STORAGE_KEYS.weatherScale,
+      defaultScale: 1,
+      scale: 1,
+      supportsZoom: false
+    },
+    quote: {
+      hostId: "quoteScaleHost",
+      rootId: "quoteScaleRoot",
+      labelId: "quoteScaleLabel",
+      downBtnId: "quoteScaleDownBtn",
+      upBtnId: "quoteScaleUpBtn",
+      resetBtnId: "quoteScaleResetBtn",
+      storageKey: STORAGE_KEYS.quoteScale,
+      defaultScale: 1,
+      scale: 1,
+      supportsZoom: false
+    }
   };
 
   function isArray(value) {
@@ -126,10 +165,10 @@
     }
   }
 
-  function normalizeClockScale(value) {
+  function normalizeModuleScale(value, defaultValue) {
     var parsed = parseFloat(value);
     if (isNaN(parsed)) {
-      parsed = 1;
+      parsed = defaultValue;
     }
     if (parsed < CLOCK_SCALE_MIN) {
       parsed = CLOCK_SCALE_MIN;
@@ -140,18 +179,20 @@
     return Math.round(parsed * 10) / 10;
   }
 
-  function updateClockScaleLabel() {
-    var label = document.getElementById("clockScaleLabel");
+  function updateModuleScaleLabel(moduleKey) {
+    var config = moduleScaleConfigs[moduleKey];
+    var label = config ? document.getElementById(config.labelId) : null;
     if (!label) {
       return;
     }
-    label.innerHTML = String(Math.round(clockState.scale * 100)) + "%";
+    label.innerHTML = String(Math.round(config.scale * 100)) + "%";
   }
 
-  function applyClockScale() {
-    var host = document.getElementById("clockScaleHost");
-    var root = document.getElementById("clockScaleRoot");
-    var scale = clockState.scale;
+  function applyModuleScale(moduleKey) {
+    var config = moduleScaleConfigs[moduleKey];
+    var host = config ? document.getElementById(config.hostId) : null;
+    var root = config ? document.getElementById(config.rootId) : null;
+    var scale = config ? config.scale : 1;
     var baseHeight;
     var transformValue;
 
@@ -160,16 +201,16 @@
     }
 
     if (typeof root.style.zoom !== "undefined") {
-      clockState.supportsZoom = true;
+      config.supportsZoom = true;
     }
 
-    if (clockState.supportsZoom) {
+    if (config.supportsZoom) {
       root.style.width = "100%";
       root.style.zoom = String(scale);
       root.style.webkitTransform = "none";
       root.style.transform = "none";
       host.style.height = "auto";
-      updateClockScaleLabel();
+      updateModuleScaleLabel(moduleKey);
       return;
     }
 
@@ -185,44 +226,110 @@
     root.style.webkitTransform = transformValue;
     root.style.transform = transformValue;
     host.style.height = String(Math.ceil(baseHeight * scale)) + "px";
-    updateClockScaleLabel();
+    updateModuleScaleLabel(moduleKey);
   }
 
-  function setClockScale(value, shouldPersist) {
-    clockState.scale = normalizeClockScale(value);
-    if (shouldPersist) {
-      safeSetStorage(STORAGE_KEYS.clockScale, String(clockState.scale));
+  function setModuleScale(moduleKey, value, shouldPersist) {
+    var config = moduleScaleConfigs[moduleKey];
+    if (!config) {
+      return;
     }
-    applyClockScale();
+
+    config.scale = normalizeModuleScale(value, config.defaultScale);
+    applyModuleScale(moduleKey);
+    enforceSinglePageLayout(moduleKey);
+    if (shouldPersist) {
+      safeSetStorage(config.storageKey, String(config.scale));
+    }
   }
 
-  function initClockScaleControls() {
-    var downBtn = document.getElementById("clockScaleDownBtn");
-    var upBtn = document.getElementById("clockScaleUpBtn");
-    var resetBtn = document.getElementById("clockScaleResetBtn");
-    var storedScale = safeGetStorage(STORAGE_KEYS.clockScale);
+  function initSingleModuleScaleControls(moduleKey) {
+    var config = moduleScaleConfigs[moduleKey];
+    var downBtn;
+    var upBtn;
+    var resetBtn;
+    var storedScale;
 
-    clockState.scale = normalizeClockScale(storedScale);
+    if (!config) {
+      return;
+    }
+
+    downBtn = document.getElementById(config.downBtnId);
+    upBtn = document.getElementById(config.upBtnId);
+    resetBtn = document.getElementById(config.resetBtnId);
+    storedScale = safeGetStorage(config.storageKey);
+    config.scale = normalizeModuleScale(storedScale, config.defaultScale);
 
     if (downBtn) {
       downBtn.onclick = function () {
-        setClockScale(clockState.scale - CLOCK_SCALE_STEP, true);
+        setModuleScale(moduleKey, config.scale - CLOCK_SCALE_STEP, true);
       };
     }
 
     if (upBtn) {
       upBtn.onclick = function () {
-        setClockScale(clockState.scale + CLOCK_SCALE_STEP, true);
+        setModuleScale(moduleKey, config.scale + CLOCK_SCALE_STEP, true);
       };
     }
 
     if (resetBtn) {
       resetBtn.onclick = function () {
-        setClockScale(1, true);
+        setModuleScale(moduleKey, config.defaultScale, true);
       };
     }
 
-    setClockScale(clockState.scale, false);
+    setModuleScale(moduleKey, config.scale, false);
+  }
+
+  function initModuleScaleControls() {
+    initSingleModuleScaleControls("clock");
+    initSingleModuleScaleControls("weather");
+    initSingleModuleScaleControls("quote");
+  }
+
+  function applyAllModuleScales() {
+    applyModuleScale("clock");
+    applyModuleScale("weather");
+    applyModuleScale("quote");
+  }
+
+  function getViewportHeight() {
+    if (window.innerHeight) {
+      return window.innerHeight;
+    }
+    if (document.documentElement && document.documentElement.clientHeight) {
+      return document.documentElement.clientHeight;
+    }
+    return document.body ? document.body.clientHeight : 0;
+  }
+
+  function fitsSinglePage() {
+    var dashboard = document.getElementsByClassName("dashboard")[0];
+    var viewportHeight = getViewportHeight();
+    if (!dashboard || !viewportHeight) {
+      return true;
+    }
+    return dashboard.scrollHeight <= viewportHeight - 2;
+  }
+
+  function enforceSinglePageLayout(moduleKey) {
+    var config = moduleScaleConfigs[moduleKey];
+    var guard = 0;
+    var nextScale;
+
+    if (!config) {
+      return;
+    }
+
+    while (!fitsSinglePage() && config.scale > CLOCK_SCALE_MIN && guard < 20) {
+      nextScale = normalizeModuleScale(config.scale - CLOCK_SCALE_STEP, config.defaultScale);
+      if (nextScale === config.scale) {
+        break;
+      }
+      config.scale = nextScale;
+      applyModuleScale(moduleKey);
+      guard += 1;
+    }
   }
 
   function findGroupById(groupId) {
@@ -475,19 +582,25 @@
       "下一次自动刷新：" + pad2(nextRefresh.getHours()) + ":" + pad2(nextRefresh.getMinutes());
 
     renderTenMinuteGrid(activeSlot);
-    applyClockScale();
+    applyModuleScale("clock");
   }
 
   function initClock() {
     renderClock();
-    initClockScaleControls();
   }
 
-  function bindClockScaleResize() {
+  function bindModuleScaleResize() {
+    var handler = function () {
+      applyAllModuleScales();
+      enforceSinglePageLayout("clock");
+      enforceSinglePageLayout("weather");
+      enforceSinglePageLayout("quote");
+    };
+
     if (window.addEventListener) {
-      window.addEventListener("resize", applyClockScale, false);
+      window.addEventListener("resize", handler, false);
     } else if (window.attachEvent) {
-      window.attachEvent("onresize", applyClockScale);
+      window.attachEvent("onresize", handler);
     }
   }
 
@@ -553,6 +666,8 @@
       weatherMain.innerHTML = "未找到可用城市";
       weatherSub.innerHTML = "请检查城市配置数据";
       weatherUpdated.innerHTML = "";
+      applyModuleScale("weather");
+      enforceSinglePageLayout("weather");
       return;
     }
 
@@ -609,6 +724,8 @@
           pad2(getDatePart(nowCtx.date, nowCtx.useUTCFields, "hour")) +
           ":" +
           pad2(getDatePart(nowCtx.date, nowCtx.useUTCFields, "minute"));
+        applyModuleScale("weather");
+        enforceSinglePageLayout("weather");
       },
       function () {
         if (requestToken !== weatherState.requestToken) {
@@ -617,6 +734,8 @@
         weatherMain.innerHTML = selectedCity.label + "（" + selectedCity.country + "） 天气暂不可用";
         weatherSub.innerHTML = "请检查网络或 HTTPS 兼容性，页面会在下次刷新时重试";
         weatherUpdated.innerHTML = "";
+        applyModuleScale("weather");
+        enforceSinglePageLayout("weather");
       }
     );
   }
@@ -659,12 +778,15 @@
 
       quoteText.innerHTML = "“" + selected.text + "”";
       quoteMeta.innerHTML = source + author + " · " + mediaType + " · " + getDateKey(current);
+      applyModuleScale("quote");
+      enforceSinglePageLayout("quote");
     });
   }
 
   function init() {
+    initModuleScaleControls();
     initClock();
-    bindClockScaleResize();
+    bindModuleScaleResize();
     scheduleAutoRefresh();
     initWeatherSelectors();
     renderWeather();

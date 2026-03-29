@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <title>Kindle Dashboard</title>
-    <link rel="stylesheet" href="./styles.css?v=20260329d" />
+    <link rel="stylesheet" href="./styles.css?v=20260329e" />
   </head>
   <body>
     <main class="dashboard" aria-live="polite">
@@ -26,7 +26,7 @@
               <span class="colon">:</span>
               <span id="minuteText" class="minute-text">--</span>
             </div>
-            <p id="clockTimezoneText" class="clock-zone">时区：--</p>
+            <p id="clockTimezoneText" class="clock-zone">时区：-</p>
             <p id="slotRangeText" class="slot-range">--</p>
             <div id="tenMinuteGrid" class="ten-grid" role="img" aria-label="十分钟时段进度"></div>
             <p id="refreshHint" class="hint">下一次自动刷新：--:--</p>
@@ -36,26 +36,50 @@
 
       <section class="card weather-card" aria-label="天气提示">
         <p class="card-title">天气提示</p>
-        <div class="weather-controls">
-          <label for="cityGroupSelect" class="selector-label">区域</label>
-          <select id="cityGroupSelect" class="selector-input" aria-label="选择城市区域"></select>
-          <label for="citySelect" class="selector-label">城市</label>
-          <select id="citySelect" class="selector-input" aria-label="选择城市"></select>
+        <div class="clock-scale-controls" role="group" aria-label="天气模块缩放控制">
+          <button id="weatherScaleDownBtn" class="clock-scale-btn" type="button" aria-label="缩小">-</button>
+          <button id="weatherScaleUpBtn" class="clock-scale-btn" type="button" aria-label="放大">+</button>
+          <button id="weatherScaleResetBtn" class="clock-scale-btn clock-scale-reset" type="button" aria-label="重置">
+            重置
+          </button>
+          <span id="weatherScaleLabel" class="clock-scale-label">100%</span>
         </div>
-        <p id="weatherMain" class="weather-main">正在获取天气...</p>
-        <p id="weatherSub" class="weather-sub">请稍候</p>
-        <p id="weatherUpdated" class="weather-updated"></p>
+        <div id="weatherScaleHost" class="clock-scale-host">
+          <div id="weatherScaleRoot" class="clock-scale-root">
+            <div class="weather-controls">
+              <label for="cityGroupSelect" class="selector-label">区域</label>
+              <select id="cityGroupSelect" class="selector-input" aria-label="选择城市区域"></select>
+              <label for="citySelect" class="selector-label">城市</label>
+              <select id="citySelect" class="selector-input" aria-label="选择城市"></select>
+            </div>
+            <p id="weatherMain" class="weather-main">正在获取天气...</p>
+            <p id="weatherSub" class="weather-sub">请稍候</p>
+            <p id="weatherUpdated" class="weather-updated"></p>
+          </div>
+        </div>
       </section>
 
       <section class="card quote-card" aria-label="每日一言">
         <p class="card-title">每日一言</p>
-        <blockquote id="quoteText" class="quote-text">正在准备今日语录...</blockquote>
-        <p id="quoteMeta" class="quote-meta"></p>
+        <div class="clock-scale-controls" role="group" aria-label="每日一言模块缩放控制">
+          <button id="quoteScaleDownBtn" class="clock-scale-btn" type="button" aria-label="缩小">-</button>
+          <button id="quoteScaleUpBtn" class="clock-scale-btn" type="button" aria-label="放大">+</button>
+          <button id="quoteScaleResetBtn" class="clock-scale-btn clock-scale-reset" type="button" aria-label="重置">
+            重置
+          </button>
+          <span id="quoteScaleLabel" class="clock-scale-label">100%</span>
+        </div>
+        <div id="quoteScaleHost" class="clock-scale-host">
+          <div id="quoteScaleRoot" class="clock-scale-root">
+            <blockquote id="quoteText" class="quote-text">正在准备今日语录...</blockquote>
+            <p id="quoteMeta" class="quote-meta"></p>
+          </div>
+        </div>
       </section>
     </main>
 
-    <script src="./data/quote-library.js?v=20260329d"></script>
-    <script src="./data/cities.js?v=20260329d"></script>
-    <script src="./script.js?v=20260329d"></script>
+    <script src="./data/quote-library.js?v=20260329e"></script>
+    <script src="./data/cities.js?v=20260329e"></script>
+    <script src="./script.js?v=20260329e"></script>
   </body>
 </html>
