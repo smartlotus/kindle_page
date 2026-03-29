@@ -6,19 +6,22 @@
     };
   }
 
-  var REFRESH_INTERVAL_MINUTES = 10;
+  var DEFAULT_REFRESH_MINUTES = 10;
   var QUOTE_LIBRARY_PATH = "./data/quote-library.json";
   var DEFAULT_CLOCK_UTC_OFFSET_SECONDS = 8 * 3600;
   var DEFAULT_CLOCK_TIMEZONE_LABEL = "北京时间 (UTC+8)";
   var CLOCK_SCALE_MIN = 0.7;
-  var CLOCK_SCALE_MAX = 1.3;
+  var CLOCK_SCALE_MAX = 1.8;
   var CLOCK_SCALE_STEP = 0.1;
   var STORAGE_KEYS = {
     weatherGroup: "kindle_weather_group",
     weatherCity: "kindle_weather_city",
     clockScale: "kindle_clock_scale",
     weatherScale: "kindle_weather_scale",
-    quoteScale: "kindle_quote_scale"
+    quoteScale: "kindle_quote_scale",
+    refreshMinutes: "kindle_refresh_minutes",
+    keepAwakeEnabled: "kindle_keep_awake_enabled",
+    keepAwakeInterval: "kindle_keep_awake_interval"
   };
 
   var FALLBACK_CITY_GROUPS = [
@@ -76,6 +79,19 @@
     useRemoteTime: true,
     utcOffsetSeconds: DEFAULT_CLOCK_UTC_OFFSET_SECONDS,
     timezoneLabel: DEFAULT_CLOCK_TIMEZONE_LABEL
+  };
+
+  var refreshState = {
+    minutes: DEFAULT_REFRESH_MINUTES,
+    timerId: null
+  };
+
+  var keepAwakeState = {
+    enabled: false,
+    intervalSec: 30,
+    timerId: null,
+    wakeLockObject: null,
+    flip: false
   };
 
   var moduleScaleConfigs = {
@@ -140,9 +156,10 @@
   }
 
   function getNextRefreshTime(now) {
+    var refreshMinutes = refreshState.minutes || DEFAULT_REFRESH_MINUTES;
     var next = new Date(now.getTime());
-    var remainder = now.getMinutes() % REFRESH_INTERVAL_MINUTES;
-    var delta = remainder === 0 ? REFRESH_INTERVAL_MINUTES : REFRESH_INTERVAL_MINUTES - remainder;
+    var remainder = now.getMinutes() % refreshMinutes;
+    var delta = remainder === 0 ? refreshMinutes : refreshMinutes - remainder;
     next.setSeconds(0);
     next.setMilliseconds(0);
     next.setMinutes(now.getMinutes() + delta);
@@ -163,6 +180,28 @@
     } catch (error) {
       // Ignore storage failures on restricted browsers.
     }
+  }
+
+  function normalizeRefreshMinutes(value) {
+    var parsed = parseInt(value, 10);
+    var allowed = { 2: true, 5: true, 10: true, 15: true, 30: true };
+    if (!allowed[parsed]) {
+      parsed = DEFAULT_REFRESH_MINUTES;
+    }
+    return parsed;
+  }
+
+  function normalizeKeepAwakeInterval(value) {
+    var parsed = parseInt(value, 10);
+    var allowed = { 15: true, 30: true, 60: true, 120: true };
+    if (!allowed[parsed]) {
+      parsed = 30;
+    }
+    return parsed;
+  }
+
+  function parseStoredBoolean(value) {
+    return value === "1" || value === "true";
   }
 
   function normalizeModuleScale(value, defaultValue) {
@@ -237,7 +276,6 @@
 
     config.scale = normalizeModuleScale(value, config.defaultScale);
     applyModuleScale(moduleKey);
-    enforceSinglePageLayout(moduleKey);
     if (shouldPersist) {
       safeSetStorage(config.storageKey, String(config.scale));
     }
@@ -291,45 +329,6 @@
     applyModuleScale("clock");
     applyModuleScale("weather");
     applyModuleScale("quote");
-  }
-
-  function getViewportHeight() {
-    if (window.innerHeight) {
-      return window.innerHeight;
-    }
-    if (document.documentElement && document.documentElement.clientHeight) {
-      return document.documentElement.clientHeight;
-    }
-    return document.body ? document.body.clientHeight : 0;
-  }
-
-  function fitsSinglePage() {
-    var dashboard = document.getElementsByClassName("dashboard")[0];
-    var viewportHeight = getViewportHeight();
-    if (!dashboard || !viewportHeight) {
-      return true;
-    }
-    return dashboard.scrollHeight <= viewportHeight - 2;
-  }
-
-  function enforceSinglePageLayout(moduleKey) {
-    var config = moduleScaleConfigs[moduleKey];
-    var guard = 0;
-    var nextScale;
-
-    if (!config) {
-      return;
-    }
-
-    while (!fitsSinglePage() && config.scale > CLOCK_SCALE_MIN && guard < 20) {
-      nextScale = normalizeModuleScale(config.scale - CLOCK_SCALE_STEP, config.defaultScale);
-      if (nextScale === config.scale) {
-        break;
-      }
-      config.scale = nextScale;
-      applyModuleScale(moduleKey);
-      guard += 1;
-    }
   }
 
   function findGroupById(groupId) {
@@ -590,17 +589,10 @@
   }
 
   function bindModuleScaleResize() {
-    var handler = function () {
-      applyAllModuleScales();
-      enforceSinglePageLayout("clock");
-      enforceSinglePageLayout("weather");
-      enforceSinglePageLayout("quote");
-    };
-
     if (window.addEventListener) {
-      window.addEventListener("resize", handler, false);
+      window.addEventListener("resize", applyAllModuleScales, false);
     } else if (window.attachEvent) {
-      window.attachEvent("onresize", handler);
+      window.attachEvent("onresize", applyAllModuleScales);
     }
   }
 
@@ -608,9 +600,189 @@
     var now = new Date();
     var next = getNextRefreshTime(now);
     var delay = next.getTime() - now.getTime();
-    window.setTimeout(function () {
+    if (refreshState.timerId) {
+      window.clearTimeout(refreshState.timerId);
+    }
+    refreshState.timerId = window.setTimeout(function () {
       window.location.reload();
     }, delay + 250);
+  }
+
+  function updateKeepAwakeStatusText() {
+    var statusEl = document.getElementById("keepAwakeStatus");
+    if (!statusEl) {
+      return;
+    }
+    if (keepAwakeState.enabled) {
+      statusEl.innerHTML = "防息屏：开启 (" + keepAwakeState.intervalSec + "秒)";
+    } else {
+      statusEl.innerHTML = "防息屏：关闭";
+    }
+  }
+
+  function tryRequestWakeLock() {
+    var wakeLockApi;
+    var requestResult;
+    if (!keepAwakeState.enabled) {
+      return;
+    }
+
+    wakeLockApi = navigator && navigator.wakeLock;
+    if (!wakeLockApi || !wakeLockApi.request) {
+      return;
+    }
+
+    try {
+      requestResult = wakeLockApi.request("screen");
+      if (requestResult && requestResult.then) {
+        requestResult.then(function (lockObj) {
+          keepAwakeState.wakeLockObject = lockObj || null;
+        });
+      }
+    } catch (error) {
+      // Ignore unsupported wake lock errors.
+    }
+  }
+
+  function releaseWakeLock() {
+    var wakeLockObj = keepAwakeState.wakeLockObject;
+    if (!wakeLockObj || !wakeLockObj.release) {
+      keepAwakeState.wakeLockObject = null;
+      return;
+    }
+
+    try {
+      wakeLockObj.release();
+    } catch (error) {
+      // Ignore release failures.
+    }
+    keepAwakeState.wakeLockObject = null;
+  }
+
+  function runKeepAwakePulse() {
+    var pulseEl = document.getElementById("keepAwakePulse");
+    var rootEl = document.documentElement;
+
+    if (!keepAwakeState.enabled) {
+      return;
+    }
+
+    keepAwakeState.flip = !keepAwakeState.flip;
+
+    if (pulseEl) {
+      pulseEl.innerHTML = String(Date.now());
+      pulseEl.style.opacity = keepAwakeState.flip ? "0.99" : "0.98";
+    }
+
+    if (rootEl && rootEl.style) {
+      if (keepAwakeState.flip) {
+        rootEl.style.webkitTransform = "translate3d(0,0,0)";
+        rootEl.style.transform = "translate3d(0,0,0)";
+      } else {
+        rootEl.style.webkitTransform = "translate3d(0.01px,0,0)";
+        rootEl.style.transform = "translate3d(0.01px,0,0)";
+      }
+    }
+
+    tryRequestWakeLock();
+  }
+
+  function syncKeepAwakeTimer() {
+    if (keepAwakeState.timerId) {
+      window.clearInterval(keepAwakeState.timerId);
+      keepAwakeState.timerId = null;
+    }
+
+    if (!keepAwakeState.enabled) {
+      releaseWakeLock();
+      updateKeepAwakeStatusText();
+      return;
+    }
+
+    runKeepAwakePulse();
+    keepAwakeState.timerId = window.setInterval(runKeepAwakePulse, keepAwakeState.intervalSec * 1000);
+    updateKeepAwakeStatusText();
+  }
+
+  function setKeepAwakeEnabled(enabled, shouldPersist) {
+    keepAwakeState.enabled = !!enabled;
+    if (shouldPersist) {
+      safeSetStorage(STORAGE_KEYS.keepAwakeEnabled, keepAwakeState.enabled ? "1" : "0");
+    }
+    syncKeepAwakeTimer();
+  }
+
+  function setKeepAwakeInterval(intervalSec, shouldPersist) {
+    keepAwakeState.intervalSec = normalizeKeepAwakeInterval(intervalSec);
+    if (shouldPersist) {
+      safeSetStorage(STORAGE_KEYS.keepAwakeInterval, String(keepAwakeState.intervalSec));
+    }
+    if (keepAwakeState.enabled) {
+      syncKeepAwakeTimer();
+    } else {
+      updateKeepAwakeStatusText();
+    }
+  }
+
+  function setRefreshMinutes(minutes, shouldPersist) {
+    refreshState.minutes = normalizeRefreshMinutes(minutes);
+    if (shouldPersist) {
+      safeSetStorage(STORAGE_KEYS.refreshMinutes, String(refreshState.minutes));
+    }
+    renderClock();
+    scheduleAutoRefresh();
+  }
+
+  function initSettingsPanel() {
+    var toggleBtn = document.getElementById("settingsToggleBtn");
+    var panel = document.getElementById("settingsPanel");
+    var keepAwakeToggle = document.getElementById("keepAwakeToggle");
+    var keepAwakeIntervalSelect = document.getElementById("keepAwakeIntervalSelect");
+    var pageRefreshSelect = document.getElementById("pageRefreshSelect");
+    var panelOpen = false;
+
+    refreshState.minutes = normalizeRefreshMinutes(safeGetStorage(STORAGE_KEYS.refreshMinutes));
+    keepAwakeState.enabled = parseStoredBoolean(safeGetStorage(STORAGE_KEYS.keepAwakeEnabled));
+    keepAwakeState.intervalSec = normalizeKeepAwakeInterval(safeGetStorage(STORAGE_KEYS.keepAwakeInterval));
+
+    if (keepAwakeToggle) {
+      keepAwakeToggle.checked = keepAwakeState.enabled;
+      keepAwakeToggle.onchange = function () {
+        setKeepAwakeEnabled(keepAwakeToggle.checked, true);
+      };
+    }
+
+    if (keepAwakeIntervalSelect) {
+      keepAwakeIntervalSelect.value = String(keepAwakeState.intervalSec);
+      keepAwakeIntervalSelect.onchange = function () {
+        setKeepAwakeInterval(keepAwakeIntervalSelect.value, true);
+      };
+    }
+
+    if (pageRefreshSelect) {
+      pageRefreshSelect.value = String(refreshState.minutes);
+      pageRefreshSelect.onchange = function () {
+        setRefreshMinutes(pageRefreshSelect.value, true);
+      };
+    }
+
+    if (toggleBtn && panel) {
+      toggleBtn.onclick = function () {
+        panelOpen = !panelOpen;
+        panel.className = panelOpen ? "settings-panel" : "settings-panel settings-hidden";
+      };
+    }
+
+    updateKeepAwakeStatusText();
+    syncKeepAwakeTimer();
+  }
+
+  function cleanupKeepAwakeOnUnload() {
+    if (keepAwakeState.timerId) {
+      window.clearInterval(keepAwakeState.timerId);
+      keepAwakeState.timerId = null;
+    }
+    releaseWakeLock();
   }
 
   function encodeQuery(params) {
@@ -667,7 +839,6 @@
       weatherSub.innerHTML = "请检查城市配置数据";
       weatherUpdated.innerHTML = "";
       applyModuleScale("weather");
-      enforceSinglePageLayout("weather");
       return;
     }
 
@@ -725,7 +896,6 @@
           ":" +
           pad2(getDatePart(nowCtx.date, nowCtx.useUTCFields, "minute"));
         applyModuleScale("weather");
-        enforceSinglePageLayout("weather");
       },
       function () {
         if (requestToken !== weatherState.requestToken) {
@@ -735,7 +905,6 @@
         weatherSub.innerHTML = "请检查网络或 HTTPS 兼容性，页面会在下次刷新时重试";
         weatherUpdated.innerHTML = "";
         applyModuleScale("weather");
-        enforceSinglePageLayout("weather");
       }
     );
   }
@@ -779,18 +948,24 @@
       quoteText.innerHTML = "“" + selected.text + "”";
       quoteMeta.innerHTML = source + author + " · " + mediaType + " · " + getDateKey(current);
       applyModuleScale("quote");
-      enforceSinglePageLayout("quote");
     });
   }
 
   function init() {
     initModuleScaleControls();
+    initSettingsPanel();
     initClock();
     bindModuleScaleResize();
     scheduleAutoRefresh();
     initWeatherSelectors();
     renderWeather();
     renderDailyQuote(new Date());
+
+    if (window.addEventListener) {
+      window.addEventListener("beforeunload", cleanupKeepAwakeOnUnload, false);
+    } else if (window.attachEvent) {
+      window.attachEvent("onbeforeunload", cleanupKeepAwakeOnUnload);
+    }
   }
 
   if (document.addEventListener) {

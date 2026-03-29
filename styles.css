@@ -50,6 +50,94 @@ body {
   text-transform: uppercase;
 }
 
+.settings-card {
+  position: relative;
+}
+
+.settings-head {
+  display: table;
+  width: 100%;
+}
+
+.settings-toggle-btn {
+  display: table-cell;
+  width: 96px;
+  height: 30px;
+  border: 1.5px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 28px;
+  text-align: center;
+  font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", serif;
+}
+
+.settings-status {
+  display: table-cell;
+  text-align: right;
+  vertical-align: middle;
+  color: var(--muted);
+  font-size: 13px;
+  padding-left: 8px;
+}
+
+.settings-panel {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #cfcfc8;
+}
+
+.settings-hidden {
+  display: none;
+}
+
+.settings-row {
+  display: table;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.settings-label {
+  display: table-cell;
+  width: 70px;
+  vertical-align: middle;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.settings-select {
+  display: table-cell;
+  width: 100%;
+  min-height: 28px;
+  padding: 2px 5px;
+  border: 1.5px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--fg);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.settings-check {
+  vertical-align: middle;
+}
+
+.settings-note {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.keepalive-pulse {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 .clock-scale-controls {
   margin: 0 0 6px;
   white-space: nowrap;
@@ -260,6 +348,17 @@ body {
   .clock-scale-reset {
     min-width: 44px;
     font-size: 11px;
+  }
+
+  .settings-toggle-btn {
+    width: 88px;
+    height: 28px;
+    font-size: 12px;
+    line-height: 26px;
+  }
+
+  .settings-status {
+    font-size: 12px;
   }
 
   .weather-main {

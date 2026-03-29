@@ -4,10 +4,44 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <title>Kindle Dashboard</title>
-    <link rel="stylesheet" href="./styles.css?v=20260329e" />
+    <link rel="stylesheet" href="./styles.css?v=20260329f" />
   </head>
   <body>
     <main class="dashboard" aria-live="polite">
+      <section class="card settings-card" aria-label="页面设置">
+        <div class="settings-head">
+          <button id="settingsToggleBtn" class="settings-toggle-btn" type="button" aria-label="展开设置">⚙ 设置</button>
+          <span id="keepAwakeStatus" class="settings-status">防息屏：关闭</span>
+        </div>
+        <div id="settingsPanel" class="settings-panel settings-hidden">
+          <div class="settings-row">
+            <label for="keepAwakeToggle" class="settings-label">防息屏</label>
+            <input id="keepAwakeToggle" class="settings-check" type="checkbox" />
+          </div>
+          <div class="settings-row">
+            <label for="keepAwakeIntervalSelect" class="settings-label">心跳频率</label>
+            <select id="keepAwakeIntervalSelect" class="settings-select" aria-label="防息屏心跳频率">
+              <option value="15">15 秒</option>
+              <option value="30">30 秒</option>
+              <option value="60">60 秒</option>
+              <option value="120">120 秒</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label for="pageRefreshSelect" class="settings-label">自动刷新</label>
+            <select id="pageRefreshSelect" class="settings-select" aria-label="页面自动刷新频率">
+              <option value="2">2 分钟</option>
+              <option value="5">5 分钟</option>
+              <option value="10">10 分钟</option>
+              <option value="15">15 分钟</option>
+              <option value="30">30 分钟</option>
+            </select>
+          </div>
+          <p class="settings-note">提示：防息屏是尽力模式，不同 Kindle 版本效果可能不同。</p>
+        </div>
+        <span id="keepAwakePulse" class="keepalive-pulse">0</span>
+      </section>
+
       <section class="card clock-card" aria-label="桌面时钟">
         <p class="card-title">桌面时钟</p>
         <div class="clock-scale-controls" role="group" aria-label="时钟缩放控制">
@@ -78,8 +112,8 @@
       </section>
     </main>
 
-    <script src="./data/quote-library.js?v=20260329e"></script>
-    <script src="./data/cities.js?v=20260329e"></script>
-    <script src="./script.js?v=20260329e"></script>
+    <script src="./data/quote-library.js?v=20260329f"></script>
+    <script src="./data/cities.js?v=20260329f"></script>
+    <script src="./script.js?v=20260329f"></script>
   </body>
 </html>
